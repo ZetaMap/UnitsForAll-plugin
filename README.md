@@ -1,6 +1,6 @@
 # UnitsForAll plugin
 
-## All Commands
+### All Commands
 * test
 
 ### Feedback
