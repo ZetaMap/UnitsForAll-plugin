@@ -1,3 +1,3 @@
 powershell .\gradlew :build
-move /y .\build\libs\UnitForAll-plugin.jar .\
+move /y .\build\libs\UnitsForAll-plugin.jar .\
 rd /s /q .\build
