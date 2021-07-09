@@ -4,16 +4,15 @@
 * test
 
 ### Feedback
-Open an issue if you have a suggestion.
+Ouvrez un 'Issue' si vous avez une suggestion ou rencontrez un bug.
 
 ### Releases
-Prebuild relases can be found [here](https://github.com/Susideur/UnitsForAll-plugin/releases)
+Des versions prédéfinies peuvent être trouvées [ici](https://github.com/Susideur/UnitsForAll-plugin/releases)
 
 ### Building a Jar 
-You have just run `build.bat` and the plugin will compile automatically.
+Vous avez juste à lancer `build.bat` et le plugin se compilera et s'exportera automatiquement.
 
 
 ### Installing
-
-Simply place the output jar from the step above in your server's `config/mods` directory and restart the server.
-List your currently installed plugins by running the `plugins` command.
+Placez simplement le fichier jar de l'étape ci-dessus dans le répertoire `config/mods` de votre serveur et redémarrez le serveur.
+Listez vos plugins actuellement installés en exécutant la commande `mods`. 
