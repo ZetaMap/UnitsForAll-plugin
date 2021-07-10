@@ -3,7 +3,7 @@
 ### All Commands
 * `/spawnunit <unité>` Lance un vote pour faire spawn toute les unités en stock.
 * `/votespawn <oui|non>` Donner son avis si le spawn doit avoir lieu ou pas.
-* `/pluginconfig <help|commande> [valeur]` \[Admin] Configuration du plugin.
+* `/plugin <help|commande> [valeur]` \[Admin] Configuration du plugin.
 * `unitsforall [on|off]` \[Console] Active/Désactive le plugin (redémarrage du serveur nécessaire).
 
 ### Feedback
