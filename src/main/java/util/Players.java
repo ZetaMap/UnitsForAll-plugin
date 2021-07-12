@@ -32,10 +32,12 @@ public class Players {
     	player.sendMessage("[gold]Attention : []" + String.format(fmt, msg));
     }
     public static void messageToTeam(mindustry.game.Team team, String fmt, Object... msg) {
-    	if (testGamemode())
-    		Call.sendMessage(String.format("[#%s]%s: []" + fmt, 
-    			team.color.toString().substring(2), team.name.toUpperCase(), msg));
+    	if (testGamemode()) Call.sendMessage(String.format("[#%s]%s: []" + fmt, team.color.toString(), team.name.toUpperCase(), msg));
     	else Call.sendMessage(String.format(fmt, msg));
+    }
+    public static void announce(Player player, String message) {
+    	Call.infoPopup("[scarlet]" + message + " [lightgray](par " + player.name + "[lightgray])", 5, 0, 0, 0, 0, 0);
+		Call.sendMessage("\n[orange]/!\\ [scarlet]" + message + " [lightgray](par " + player.name + "[lightgray])\n");
     }
     
 	public static boolean testGamemode() {

@@ -6,7 +6,7 @@ import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.CommandHandler;
 import arc.util.Log;
-import arc.util.Timer;
+
 import mindustry.core.NetClient;
 import mindustry.game.EventType;
 import mindustry.game.Team;
@@ -83,7 +83,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 	@Override
 	public void registerClientCommands(CommandHandler handler){
 		if (isActivated) {
-			handler.<Player>register("votespawn", "<oui|non>", "Donner son avis si le spawn doit avoir lieu ou pas", (arg, player) -> {
+			handler.<Player>register("unit", "<oui|non>", "Donner son avis si le spawn doit avoir lieu ou pas", (arg, player) -> {
 				if (!inVote.get(player.team())) {
 					Players.err(player, "Aucun vote n'a été lancé !");
 					return;
@@ -122,11 +122,12 @@ public class PluginMain extends mindustry.mod.Plugin {
 
 				if (votes.get(player.team()) < rest) return;
 				Players.messageToTeam(player.team(), "[green]Vote terminé. Les unités vont spawn à coté d'un noyau.");
-				startSpawn(player.team(), unit.get(player.team()));
+				clearVotes(player.team());
+				startSpawn(stock.get(player.team()), unit.get(player.team()));
 				cooldowns.put(player.team(), new Votes(player.team(), true));
 			});
 			
-			handler.<Player>register("spawnunit", "<unité>", "Lance un vote pour faire spawn toute les unités en stock", (arg, player) -> {
+			handler.<Player>register("votespawn", "<unité>", "Lance un vote pour faire spawn toute les unités en stock", (arg, player) -> {
 				if (stock.get(player.team()) == 0) {
 					Players.err(player, "Le vote ne peut pas commencé car votre stock d'unité est vide !");
 					return;
@@ -148,12 +149,13 @@ public class PluginMain extends mindustry.mod.Plugin {
 					
 				} else {
 					voted.add(player.uuid());
+					votes.put(player.team(), votes.get(player.team())+1);
 					inVote.put(player.team(), true);
 					unit.put(player.team(), search);
 					sessions.put(player.team(), new Votes(player.team()));
 						
 					Players.messageToTeam(player.team(), "%s[orange] a lancé un vote pour le spawn de [white]%s %s [lightgray]", 
-						NetClient.colorizeName(player.id, player.name), stock, search.name);
+						NetClient.colorizeName(player.id, player.name), stock.get(player.team()), search.name);
 				}
 				
 			});
@@ -185,12 +187,13 @@ public class PluginMain extends mindustry.mod.Plugin {
 								int valeur = Integer.parseInt(arg[1]);
 								
 								if (valeur < 1 || valeur > 1440) Players.err(player, "La valeur doit être comprise entre 1 (1min) et 1440 (1j).");
+								else if (valeur < duration) Players.err(player, "Le temps avant nouvelle unité doit être supérieur à la durée d'un vote (" + createDate(duration*60) + ")");
 								else {
 									time = valeur;
 									timer = false;
-									Call.announce("[green]Le temps avant nouvelle unité a été redéfifni à [scarlet]" + createDate(time*60) + " [lightgray](par " + player.name + "[lightgray])");
-									Call.sendMessage("\n[orange]/!\\ [green]Le temps avant nouvelle unité a été redéfifni à [scarlet]" + createDate(time*60) + " [lightgray](par " + player.name + "[lightgray])\n");
+									Players.announce(player, "[green]Le temps avant nouvelle unité a été redéfifni à [scarlet]" + createDate(time*60));
 									startTimer();
+									saveSettings();
 								}
 							} else Players.err(player, "La valeur doit être un chiffre !");
 						} else Players.err(player, "Veuillez entrer une valeur !");
@@ -202,12 +205,13 @@ public class PluginMain extends mindustry.mod.Plugin {
 								int valeur = Integer.parseInt(arg[1]);
 								
 								if (valeur < 1 || valeur > 60) Players.err(player, "La valeur doit être comprise entre 1 (1min) et 60 (1h).");
+								else if (valeur > time) Players.err(player, "La durée d'un vote doit être inférieur au temps avant nouvelle unité (" + createDate(time*60) + ")");
 								else {
 									duration = valeur;
 									timer = false;
-									Call.announce("[green]La durée d'un vote a été redéfini à [scarlet]" + createDate(duration*60) + " [lightgray](par " + player.name + "[lightgray])");
-									Call.sendMessage("\n[orange]/!\\ [green]La durée d'un vote a été redéfini à [scarlet]" + createDate(duration*60) + " [lightgray](par " + player.name + "[lightgray])\n");
+									Players.announce(player, "[green]La durée d'un vote a été redéfini à [scarlet]" + createDate(duration*60));
 									startTimer();
+									saveSettings();
 								}
 							} else Players.err(player, "La valeur doit être un chiffre !");
 						} else Players.err(player, "Veuillez entrer une valeur !");
@@ -222,9 +226,9 @@ public class PluginMain extends mindustry.mod.Plugin {
 								else {
 									cooldown = valeur;
 									timer = false;
-									Call.announce("[green]Le temps d'attente entre les votes a été redéfini à [scarlet]" + createDate(cooldown*60) + " [lightgray](par " + player.name + "[lightgray])");
-									Call.sendMessage("\n[orange]/!\\ [green]Le temps d'attente entre les votes a été redéfini à [scarlet]" + createDate(cooldown*60) + " [lightgray](par " + player.name + "[lightgray])\n");
+									Players.announce(player, "[green]Le temps d'attente entre les votes a été redéfini à [scarlet]" + createDate(cooldown*60));
 									startTimer();
+									saveSettings();
 								}
 							} else Players.err(player, "La valeur doit être un chiffre !");
 						} else Players.err(player, "Veuillez entrer une valeur !");
@@ -238,7 +242,8 @@ public class PluginMain extends mindustry.mod.Plugin {
 								Players.err(player, "Cette unité n'existe pas! []Unités disponible :");
 								player.sendMessage(content.units().toString("[scarlet], []"));
 							} else {
-								startSpawn(player.team(), search);
+								startSpawn(stock.get(player.team()), search);
+								clearVotes(player.team());
 								Players.messageToTeam(player.team(), "%s [orange]a forcé le spawn de [white] %s %s", player.name, stock.get(player.team()), unit.get(player.team()).name);
 							}
 						} else Players.err(player, "Veuillez entrer une valeur !");
@@ -257,8 +262,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 							
 						} else {
 							for (Team team : Team.baseTeams) stock.put(team, 0);
-							Call.announce("[scarlet]Le stock d'unité " + (Players.testGamemode() ? "de toutes les teams " : "") + "a été réinitialisé. [lightgray](par " + player.name + "[lightgray])");
-							Call.sendMessage("\n[orange]/!\\ [scarlet]Le stock d'unité " + (Players.testGamemode() ? "de toutes les teams " : "") + "a été réinitialisé. [lightgray](par " + player.name + "[lightgray])\n");
+							Players.announce(player, "Le stock d'unité " + (Players.testGamemode() ? "de toutes les teams " : "") + "a été réinitialisé.");
 						}
 						break;
 						
@@ -271,26 +275,29 @@ public class PluginMain extends mindustry.mod.Plugin {
 							Team target = Players.findTeam(arg[1], player);
 							if (target == null) return;
 							
-							votes.put(target, 0);
-							inVote.put(target, false);
-							Groups.player.each(p -> p.team().equals(target), p -> voted.remove(p.uuid()));
-							Players.messageToTeam(target, "[orange]Tous vos votes ont été réinitialisés. [lightgray](par " + player.name + "[lightgray])");
-							
+							if (!inVote.get(target)) Players.err(player, "Cette team n'est pas en vote");
+							else {
+								sessions.get(target).stopVotes();
+								sessions.remove(target);
+								clearVotes(target);
+								Players.messageToTeam(target, "[orange]Tous vos votes ont été réinitialisés. [lightgray](par " + player.name + "[lightgray])");
+							}
+
 						} else {
 							for (Team team : Team.baseTeams) {
 								votes.put(team, 0);
 								inVote.put(team, false);
 							}
 							voted.clear();
-							Call.announce("[scarlet]Les votes " + (Players.testGamemode() ? "de toutes les teams " : "") + "ont été réinitialisés. [lightgray](par " + player.name + "[lightgray])");
-							Call.sendMessage("\n[orange]/!\\ [scarlet]Les votes " + (Players.testGamemode() ? "de toutes les teams " : "") + "ont été réinitialisés. [lightgray](par " + player.name + "[lightgray])\n");
+							sessions.forEach(t -> t.value.stopVotes());
+							sessions.clear();
+							Players.announce(player, "Les votes " + (Players.testGamemode() ? "de toutes les teams " : "") + "ont été réinitialisés.");
 						}
 						break;
 					
 					case "resettime":
 						timer = false;
-						Call.announce("[scarlet]Le temps avant nouvelle unité a été réinitialisé. [lightgray](par " + player.name + "[lightgray])");
-						Call.sendMessage("\n[orange]/!\\ [scarlet]Le temps avant nouvelle unité a été réinitialisé. [lightgray](par " + player.name + "[lightgray])\n");
+						Players.announce(player, "Le temps avant nouvelle unité a été réinitialisé.");
 						startTimer();
 						break;
 						
@@ -310,13 +317,11 @@ public class PluginMain extends mindustry.mod.Plugin {
 								cooldowns.remove(player.team());
 								Players.messageToTeam(target, "[orange]Votre temps d'attente entre les votes a été réinitialisé. [lightgray](par " + player.name + "[lightgray])");
 							}
-							
-							
+
 						} else {
 							cooldowns.forEach(t -> t.value.stopVotes());
 							cooldowns.clear();
-							Call.announce("[scarlet]Le temps d'attente entre les votes " + (Players.testGamemode() ? "de toutes les teams " : "") + "a été réinitialisé. [lightgray](par " + player.name + "[lightgray])");
-							Call.sendMessage("\n[orange]/!\\ [scarlet]Le temps d'attente entre les votes " + (Players.testGamemode() ? "de toutes les teams " : "") + "a été réinitialisé. [lightgray](par " + player.name + "[lightgray])\n");
+							Players.announce(player, "Le temps d'attente entre les votes " + (Players.testGamemode() ? "de toutes les teams " : "") + "a été réinitialisé.");
 						}
 						break;
 					
@@ -327,8 +332,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 						duration = 2;
 						cooldown = 5;
 						saveSettings();
-						Call.announce("[scarlet]Le plugin a été entierement réinitialisé. [lightgray](par " + player.name + "[lightgray])");
-						Call.sendMessage("\n[orange]/!\\ [scarlet]Le plugin a été entierement réinitialisé. [lightgray](par " + player.name + "[lightgray])\n");
+						Players.announce(player, "Le plugin a été entierement réinitialisé.");
 						startTimer();
 						break;
 					
@@ -360,10 +364,6 @@ public class PluginMain extends mindustry.mod.Plugin {
 						break;
 				}
 			});
-			
-			handler.<Player>register("test", "test", (arg, player) -> {
-				new mindustry.ai.WaveSpawner().spawnEnemies();
-			});
 		}
 	}
 	
@@ -380,7 +380,10 @@ public class PluginMain extends mindustry.mod.Plugin {
 				loadSettings();
 			};
 			
-		} else saveSettings();
+		} else {
+			saveSettings();
+			loadSettings();
+		}
 	}
 	
 	private void saveSettings() {
@@ -388,30 +391,22 @@ public class PluginMain extends mindustry.mod.Plugin {
 		settings.forceSave();
 	}
 	
-	private void startSpawn(Team team, UnitType unit) {
-		int count = stock.get(team);
-		stock.put(team, 0);
-        inVote.put(team, false);
-		votes.put(team, 0);
-		if (sessions.containsKey(team)) {
-			sessions.get(team).stopVotes();
-			sessions.remove(team);
-		}
-		
+	private void startSpawn(int count, UnitType unit) {
 		//#################################################################################
 	}
 	
 	private void startTimer() {
 		if (isActivated) {
-			timer = true;
-		
 			new Thread() {
+				@SuppressWarnings("static-access")
 				public void run() {
-					String text = "[orange] Unités en stock : [green]%s[]\nTemps avant nouvelle\nunité : [green]%s[]%s";
-					int sec = time*60;
+					try {
+						Thread.sleep(2000);
+						timer = true;
+						String text = "[orange]Unités en stock : [green]%s[]\nTemps avant nouvelle\nunité : [green]%s[]%s";
+						int sec = time*60;
 				
-					while (timer) {
-						try {
+						while (timer) {
 							if (sec-- <= 0) {
 								for (Team team : Team.baseTeams) stock.put(team, stock.get(team)+1);
 								Call.announce("[green]Nouvelle unité en stock !");
@@ -419,73 +414,90 @@ public class PluginMain extends mindustry.mod.Plugin {
 							}
 							
 							final String restTime = createDate(sec);
-							
 							Groups.player.each(p -> Call.infoPopup(p.con, String.format(text, 
 									stock.get(p.team()), restTime, (sessions.get(p.team()) != null ? 
-											"\nTemps de vote \nrestant : [green]" + createDate(sessions.get(p.team()).timeLeft) 
-											+ "\n[]Unité choisi : [green]" + unit.get(p.team()).name
-											+ "\n[]Nombre de vote : [green]" + votes.get(p.team()): 
-											cooldowns.get(p.team()) != null ? "\nProchain vote possible\n     dans : [green]" + cooldowns.get(p.team()).getTime() : "")), 
+										"\nTemps de vote restant :\n [green]" + createDate(sessions.get(p.team()).timeLeft) 
+										+ "\n[]Unité choisi : [green]" + unit.get(p.team()).name
+										+ "\n[]Nombre de vote : [green]" + votes.get(p.team()) 
+										: cooldowns.get(p.team()) != null ? "\nProchain vote possible\ndans : [green]" + createDate(cooldowns.get(p.team()).getTime())
+									: "")), 
 								(float) 1.002, 17, 0, 0, 0, 0)
 							);
 							Thread.sleep(1000);
-						} catch (InterruptedException e) {}
-					}
+						}
+					} catch (InterruptedException e) { e.printStackTrace(); }
 				}
 			}.start();
 		}	
 	}
 	
 	private String createDate(int sec) {
-		  int h = sec / 60 / 60 % 24;
-		  int m = sec / 60 % 60;
-		  int s = sec % 60;
-		  String output = "";
+		int h = sec / 60 / 60 % 24;
+		int m = sec / 60 % 60;
+		int s = sec % 60;
+		String output = "";
 		  
-		  if (h != 0) output += h + "h ";
-		  if (m != 0) output += m + "min ";
-		  if (s != 0) output += s + "sec ";
+		if (h != 0) output += h + "h ";
+		if (m != 0) output += m + "min ";
+		if (s != 0) output += s + "sec ";
+		if (h == 0 && m == 0 && s == 0) output += "0sec ";
 		  
-		  return output.strip();
+		return output.strip();
+	}
+	
+	private static void clearVotes(Team team) {
+		if (sessions.containsKey(team)) {
+			sessions.get(team).stopVotes();
+			sessions.remove(team);
+		}
+		votes.put(team, 0);
+		inVote.put(team, false);
+		unit.remove(team);
+		Groups.player.each(p -> p.team().equals(team), p -> {
+			if (voted.contains(p.uuid())) voted.remove(p.uuid());
+		});
 	}
 	
 	 
 	public static class Votes {
-		private Timer.Task task = null;
-		public int timeLeft;
+		private Thread task = null;
+		private static int timeLeft;
 		
 		public Votes(Team team) { new Votes(team, false); }
 		public Votes(Team team, boolean inCooldown) {
-			if (inCooldown) this.timeLeft = cooldown*60;
-			else this.timeLeft = duration*60;
+			if (inCooldown) timeLeft = cooldown*60;
+			else timeLeft = duration*60;
 			
-			this.task = Timer.schedule(() -> {
-				try {
-					this.timeLeft--;
-					
-					if (this.timeLeft <= 0) {
-						if (!inCooldown) {
-							Players.messageToTeam(team, "[scarlet]Temps écoulé ! Le vote pour faire spawn [accent]" + stock.get(team) + " " + unit.get(team).name + "[] est annulé.");
-							cooldowns.put(team, new Votes(team, true));
-						} else {
-							Players.messageToTeam(team, "[green]Temps d'attente terminé ! Vous pouvez à nouveau lancer un vote.");
-							cooldowns.remove(team);
-						}
-						this.task.cancel();
+			this.task = new Thread("Votes") {
+				public void run() {
+					while (timeLeft > 0) {
+						try {
+							timeLeft--;
+							Thread.sleep(1000);
+						} catch (InterruptedException e) {}
 					}
-					Thread.sleep(1000);
-				} catch (InterruptedException e) {}
-			}, timeLeft+2);
-			this.task.run();
+					if (!inCooldown) {
+						Players.messageToTeam(team, "[scarlet]Temps écoulé ! Le vote pour faire spawn [accent]" + stock.get(team) + " " + unit.get(team).name + "[] est annulé.");
+						clearVotes(team);
+						cooldowns.put(team, new Votes(team, true));
+					} else {
+						Players.messageToTeam(team, "[green]Temps d'attente terminé ! Vous pouvez à nouveau lancer un vote.");
+						cooldowns.remove(team);
+					}
+				}
+			};
+			this.task.start();
 		}
 		
 		public void stopVotes() {
-			if (this.task != null || this.task.isScheduled()) this.task.cancel();
+			if (this.task == null || this.task.isInterrupted()) return;
+			this.task.interrupt();
 		}
 		
 		public Integer getTime() {
-			if (this.task == null || !this.task.isScheduled()) return null;
-			else return this.timeLeft;
+			
+			if (this.task == null || this.task.isInterrupted()) return null;
+			else return timeLeft;
 		}
 	}
 }
