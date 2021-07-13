@@ -2,6 +2,7 @@ import static arc.Core.settings;
 import static mindustry.Vars.content;
 
 import arc.Events;
+import arc.math.Mathf;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.CommandHandler;
@@ -14,8 +15,6 @@ import mindustry.gen.Call;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.type.UnitType;
-
-import util.Players;
 
 
 public class PluginMain extends mindustry.mod.Plugin {
@@ -111,9 +110,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 				
 				voted.add(player.uuid());
 				Seq<Player> list = new Seq<>();
-				Groups.player.each(p -> {
-					if (p.team().equals(player.team())) list.add(p);
-				});
+				Groups.player.each(p -> p.team().equals(player.team()), p -> list.add(p));
 				int rest = arc.math.Mathf.ceil((float) ratio * list.size);
 				
 				Players.messageToTeam(player.team(), "%s[orange] a voté %s le spawn de [white]%s %s [lightgray](%s votes manquants)", 
@@ -121,9 +118,10 @@ public class PluginMain extends mindustry.mod.Plugin {
 					unit.get(player.team()).name, rest-votes.get(player.team()));
 
 				if (votes.get(player.team()) < rest) return;
+				
 				Players.messageToTeam(player.team(), "[green]Vote terminé. Les unités vont spawn à coté d'un noyau.");
+				startSpawn(player.team(), unit.get(player.team()));
 				clearVotes(player.team());
-				startSpawn(stock.get(player.team()), unit.get(player.team()));
 				cooldowns.put(player.team(), new Votes(player.team(), true));
 			});
 			
@@ -242,7 +240,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 								Players.err(player, "Cette unité n'existe pas! []Unités disponible :");
 								player.sendMessage(content.units().toString("[scarlet], []"));
 							} else {
-								startSpawn(stock.get(player.team()), search);
+								startSpawn(player.team(), search);
 								clearVotes(player.team());
 								Players.messageToTeam(player.team(), "%s [orange]a forcé le spawn de [white] %s %s", player.name, stock.get(player.team()), unit.get(player.team()).name);
 							}
@@ -341,14 +339,14 @@ public class PluginMain extends mindustry.mod.Plugin {
 						voted.each(v -> temp.add(Players.findByID(v).player.name));
 						builder.append("[orange]Joueurs qui ont votés : []" + (temp.isEmpty() ? "<empty>" : temp.toString("[white], ")));
 						if (Players.testGamemode()) {
+							temp.clear();
 							for (Team team : Team.baseTeams) {
-								builder.append("- [royal]" + team.name + " :[] [green]" + stock.get(team) + "[] unité(s) en stock | En Vote : [green]" 
+								temp.add("- [royal]" + team.name + " :[] [green]" + stock.get(team) + "[] unité(s) en stock | En vote : [green]" 
 										+ (inVote.get(team) ? "oui[] | Nombre de vote : [green]" + votes.get(team) : "non") 
-										+ "[] | Unité choisi : [green]" + (unit.get(player.team()) != null ? unit.get(team).name : "<unknown>"));
+										+ "[] | Unité choisi : [green]" + (unit.get(team) != null ? unit.get(team).name : "<unknown>"));
 							}
-							builder.append("\n[orange]Informations des teams :[]\n" + temp.toString("\n[white]"));
-						} else 
-							builder.append("\n[orange]Informations de la partie :[]\n"
+							builder.append("\n[orange]Informations des teams :[white]\n" + temp.toString("\n[white]"));
+						} else builder.append("\n[orange]Informations de la partie :[white]\n"
 									+ "- [green]" + stock.get(player.team()) + "[] unité(s) en stock | En Vote : [green]" 
 									+ (inVote.get(player.team()) ? "oui[] | Nombre de vote : [green]" + votes.get(player.team()) : "non") 
 									+ "[] | Unité choisi : [green]" + (unit.get(player.team()) != null ? unit.get(player.team()).name : "<unknown>"));
@@ -363,6 +361,10 @@ public class PluginMain extends mindustry.mod.Plugin {
 						Call.infoMessage(player.con, builder.toString());
 						break;
 				}
+			});
+			
+			handler.<Player>register("test", "test", (arg, player) -> {
+				startSpawn(player.team(), content.units().find(b -> b.name.equals("oct")));
 			});
 		}
 	}
@@ -379,7 +381,6 @@ public class PluginMain extends mindustry.mod.Plugin {
 				saveSettings();
 				loadSettings();
 			};
-			
 		} else {
 			saveSettings();
 			loadSettings();
@@ -391,8 +392,17 @@ public class PluginMain extends mindustry.mod.Plugin {
 		settings.forceSave();
 	}
 	
-	private void startSpawn(int count, UnitType unit) {
-		//#################################################################################
+	private void startSpawn(Team team, UnitType unit) {
+		int count = stock.get(team);
+		stock.put(team, 0);
+		mindustry.world.blocks.storage.CoreBlock.CoreBuild core = team.cores().get(new java.util.Random().nextInt(team.cores().size));
+		
+		if(unit.flying || unit.canBoost || unit.groundLayer == 74.0f || unit.groundLayer == 75.0f)
+			for (int i=0; i<count; i++) unit.spawn(team, core.x+Mathf.cosDeg(i)*60, core.y+Mathf.sinDeg(i)*60);
+			
+        else{
+//##########################################################################################################################
+        }
 	}
 	
 	private void startTimer() {
@@ -416,7 +426,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 							final String restTime = createDate(sec);
 							Groups.player.each(p -> Call.infoPopup(p.con, String.format(text, 
 									stock.get(p.team()), restTime, (sessions.get(p.team()) != null ? 
-										"\nTemps de vote restant :\n [green]" + createDate(sessions.get(p.team()).timeLeft) 
+										"\nTemps de vote restant :\n[green]" + createDate(sessions.get(p.team()).timeLeft) 
 										+ "\n[]Unité choisi : [green]" + unit.get(p.team()).name
 										+ "\n[]Nombre de vote : [green]" + votes.get(p.team()) 
 										: cooldowns.get(p.team()) != null ? "\nProchain vote possible\ndans : [green]" + createDate(cooldowns.get(p.team()).getTime())
@@ -450,9 +460,9 @@ public class PluginMain extends mindustry.mod.Plugin {
 			sessions.get(team).stopVotes();
 			sessions.remove(team);
 		}
+		unit.remove(team);
 		votes.put(team, 0);
 		inVote.put(team, false);
-		unit.remove(team);
 		Groups.player.each(p -> p.team().equals(team), p -> {
 			if (voted.contains(p.uuid())) voted.remove(p.uuid());
 		});
@@ -468,7 +478,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 			if (inCooldown) timeLeft = cooldown*60;
 			else timeLeft = duration*60;
 			
-			this.task = new Thread("Votes") {
+			this.task = new Thread() {
 				public void run() {
 					while (timeLeft > 0) {
 						try {
@@ -487,6 +497,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 				}
 			};
 			this.task.start();
+			
 		}
 		
 		public void stopVotes() {
@@ -494,9 +505,8 @@ public class PluginMain extends mindustry.mod.Plugin {
 			this.task.interrupt();
 		}
 		
-		public Integer getTime() {
-			
-			if (this.task == null || this.task.isInterrupted()) return null;
+		public int getTime() {
+			if (this.task == null || this.task.isInterrupted()) return -1;
 			else return timeLeft;
 		}
 	}
