@@ -22,12 +22,19 @@ public class PluginMain extends mindustry.mod.Plugin {
 	private static ObjectMap<Team, Votes> cooldowns = new ObjectMap<>();
 	private static ObjectMap<Team, UnitType> unit = new ObjectMap<>();
 	private static Seq<String> voted = new Seq<>();
-	private static double ratio = 0.6;
+	private static Seq<UnitType> unitList = new Seq<>();
+	private static float ratio = 0.6f;
 	private static int time = 30, duration = 2, cooldown = 5;
-	private static boolean isActivated = true, timer = true;
+	private static boolean isActivated = true, timer = true, resetConfirm = false;
 	
 	//Called after all plugins have been created and commands have been registered
 	public void init() {
+		unitList.addAll(content.units());
+		content.units().each(u -> {
+    		if (u.name.equals("alpha") || u.name.equals("beta") || u.name.equals("gamma") || u.name.equals("block"))
+    			unitList.remove(u);
+    	});
+		
 		//init content for all teams
 		for (Team team : Team.baseTeams) {
 			stock.put(team, 0);
@@ -44,6 +51,7 @@ public class PluginMain extends mindustry.mod.Plugin {
     	loadSettings(); //check if have a save for active or not clients commands and other settings
 
     	arc.Events.on(mindustry.game.EventType.WorldLoadEvent.class, e -> {
+    		unitList.clear();
     		init();//re-init content team
     		timer = false; //stop the timer
     		startTimer(); //restart the timer during a new card
@@ -83,8 +91,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 				if (!inVote.get(player.team())) {
 					Players.err(player, "Aucun vote n'a été lancé !");
 					return;
-				}
-				if (voted.contains(player.uuid())) {
+				} else if (voted.contains(player.uuid())) {
 					Players.err(player, "Vous avez déjà voté !");
 					return;
 				}
@@ -111,7 +118,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 				int rest = arc.math.Mathf.ceil((float) ratio * list.size);
 				
 				Players.messageToTeam(player.team(), "%s[orange] a voté %s le spawn de [white]%s %s [lightgray](%s votes manquants)", 
-					NetClient.colorizeName(player.id, player.name), accept ? "[green]pour[]" : "[scarlet]contre[]", stock, 
+					NetClient.colorizeName(player.id, player.name), accept ? "[green]pour[]" : "[scarlet]contre[]", stock.get(player.team()), 
 					unit.get(player.team()).name, rest-votes.get(player.team()));
 
 				if (votes.get(player.team()) < rest) return;
@@ -123,36 +130,32 @@ public class PluginMain extends mindustry.mod.Plugin {
 			});
 			
 			handler.<Player>register("votespawn", "<unité>", "Lance un vote pour faire spawn toute les unités en stock", (arg, player) -> {
-				if (stock.get(player.team()) == 0) {
-					Players.err(player, "Le vote ne peut pas commencé car votre stock d'unité est vide !");
-					return;
-				} 
 				if (inVote.get(player.team())) {
 					Players.err(player, "Un vote est déjà en cours !");
 					return;
-				}
-				if (cooldowns.get(player.team()) != null) {
+				} else if (cooldowns.get(player.team()) != null) {
 					Players.err(player, "Veuillez attendre encore [green]" + createDate(cooldowns.get(player.team()).getTime()) + "[] avant de relancer un vote.");
 					return;
 				}
 				
-				UnitType search = content.units().find(b -> b.name.equals(arg[0]));
+				UnitType search = unitList.find(b -> b.name.equals(arg[0]));
 					
 				if (search == null) {
 					Players.err(player, "Cette unité n'existe pas! []Unités disponible :");
-					player.sendMessage(content.units().toString("[scarlet], []"));
-					
+					player.sendMessage(unitList.toString("[scarlet], []"));
 				} else {
-					voted.add(player.uuid());
-					votes.put(player.team(), votes.get(player.team())+1);
-					inVote.put(player.team(), true);
-					unit.put(player.team(), search);
-					sessions.put(player.team(), new Votes(player.team()));
-						
-					Players.messageToTeam(player.team(), "%s[orange] a lancé un vote pour le spawn de [white]%s %s [lightgray]", 
-						NetClient.colorizeName(player.id, player.name), stock.get(player.team()), search.name);
+					if (stock.get(player.team()) == 0) Players.err(player, "Le vote ne peut pas commencé car votre stock d'unité est vide !");
+					else {
+						voted.add(player.uuid());
+						votes.put(player.team(), votes.get(player.team())+1);
+						inVote.put(player.team(), true);
+						unit.put(player.team(), search);
+						sessions.put(player.team(), new Votes(player.team()));
+							
+						Players.messageToTeam(player.team(), "%s[orange] a lancé un vote pour le spawn de [white]%s %s [lightgray]", 
+							NetClient.colorizeName(player.id, player.name), stock.get(player.team()), search.name);
+					}
 				}
-				
 			});
 		
 			handler.<Player>register("plugin", "<help|commande> [valeur]", "[scarlet][[Admin][] Configuration du plugin", (arg, player) -> {
@@ -171,7 +174,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 						builder.append(" [orange]- resetvotes [white][[team][lightgray] : Réinitialise les votes d'une team ou toutes si pas d'argument.\n");
 						builder.append(" [orange]- resettime[lightgray] : Réinitialise le temps avant nouvelle unité.\n");
 						builder.append(" [orange]- delcooldown [white][[team][lightgray] : Supprime le temps d'attente entre les votes, d'une team ou toutes si pas d'argument.\n");
-						builder.append(" [orange]- default[lightgray] : Remet toutes les valeurs par défaut.\n");
+						builder.append(" [orange]- default [white][[o|n][lightgray] : Remet toutes les valeurs par défaut.\n");
 						builder.append(" [orange]- info[lightgray] : Affiche les informations de la partie en cours et du plugin.\n");
 						player.sendMessage(builder.toString());
 						break;
@@ -231,15 +234,18 @@ public class PluginMain extends mindustry.mod.Plugin {
 					
 					case "forcespawn":
 						if (arg.length == 2) {
-							UnitType search = content.units().find(b -> b.name.equals(arg[0]));
+							UnitType search = unitList.find(b -> b.name.equals(arg[0]));
 							
 							if (search == null) {
 								Players.err(player, "Cette unité n'existe pas! []Unités disponible :");
-								player.sendMessage(content.units().toString("[scarlet], []"));
+								player.sendMessage(unitList.toString("[scarlet], []"));
 							} else {
-								startSpawn(player.team(), search);
-								clearVotes(player.team());
-								Players.messageToTeam(player.team(), "%s [orange]a forcé le spawn de [white] %s %s", player.name, stock.get(player.team()), unit.get(player.team()).name);
+								if (stock.get(player.team()) == 0) Players.err(player, "Vous ne pouvez pas forcer un spawn car votre stock d'unité est vide !");
+								else {
+									startSpawn(player.team(), search);
+									clearVotes(player.team());
+									Players.messageToTeam(player.team(), "%s [orange]a forcé le spawn de [white] %s %s", player.name, stock.get(player.team()), unit.get(player.team()).name);
+								}
 							}
 						} else Players.err(player, "Veuillez entrer une valeur !");
 						break;
@@ -321,14 +327,35 @@ public class PluginMain extends mindustry.mod.Plugin {
 						break;
 					
 					case "default":
-						init();
-						timer = false;
-						time = 30;
-						duration = 2;
-						cooldown = 5;
-						saveSettings();
-						Players.announce(player, "Le plugin a été entierement réinitialisé.");
-						startTimer();
+			    		if (arg.length == 2 && !resetConfirm) {
+			    			player.sendMessage("Utilisez d'abord : '/plugin default', avant de confirmé la commande.");
+			    			return;
+			    		} else if (!resetConfirm) {
+			    			player.sendMessage("[scarlet]Cela va réinitialiser la partie et le plugin, êtes-vous sûr ? [lightgray](/plugin default [o|n])");
+			    			resetConfirm = true;
+			    			return;
+			    		} else if (arg.length == 1 && resetConfirm) {
+			    			player.sendMessage("[scarlet]Cela va réinitialiser la partie et le plugin, êtes-vous sûr ? [lightgray](/plugin default [o|n])");
+			    			resetConfirm = true;
+			    			return;
+			    		}
+
+			    		switch (arg[1]) {
+			    			case "y": case "yes": case "o": case "oui":
+			    				init();
+								timer = false;
+								time = 30;
+								duration = 2;
+								cooldown = 5;
+								saveSettings();
+								Players.announce(player, "La partie et le plugin ont été réinitialisés.");
+								startTimer();
+								resetConfirm = false;
+			    				break;
+			    			default: 
+			    				player.sendMessage("Confirmation annulée...");
+			    				resetConfirm = false;
+			    		}
 						break;
 					
 					case "info":
@@ -358,11 +385,6 @@ public class PluginMain extends mindustry.mod.Plugin {
 						Call.infoMessage(player.con, builder.toString());
 						break;
 				}
-			});
-			
-			handler.<Player>register("test", "<u>", "test", (arg, player) -> {
-				//content.units().each(u -> player.sendMessage(String.join(" : ", u.name+"", u.groundLayer+"", u.accel+"", u.drag+"", u.canDrown+"", u.id+"")));
-				startSpawn(player.team(), content.units().find(b -> b.name.equals(arg[0])));
 			});
 		}
 	}
