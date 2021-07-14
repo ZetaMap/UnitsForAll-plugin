@@ -1,15 +1,12 @@
 import static arc.Core.settings;
 import static mindustry.Vars.content;
 
-import arc.Events;
-import arc.math.Mathf;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.CommandHandler;
 import arc.util.Log;
 
 import mindustry.core.NetClient;
-import mindustry.game.EventType;
 import mindustry.game.Team;
 import mindustry.gen.Call;
 import mindustry.gen.Groups;
@@ -46,10 +43,10 @@ public class PluginMain extends mindustry.mod.Plugin {
     public PluginMain() {
     	loadSettings(); //check if have a save for active or not clients commands and other settings
 
-    	Events.on(EventType.WorldLoadEvent.class, e -> startTimer()); //restart the timer during a new card
-    	Events.on(EventType.GameOverEvent.class, e -> {
+    	arc.Events.on(mindustry.game.EventType.WorldLoadEvent.class, e -> {
     		init();//re-init content team
     		timer = false; //stop the timer
+    		startTimer(); //restart the timer during a new card
     	}); 
     }
 	
@@ -363,8 +360,9 @@ public class PluginMain extends mindustry.mod.Plugin {
 				}
 			});
 			
-			handler.<Player>register("test", "test", (arg, player) -> {
-				startSpawn(player.team(), content.units().find(b -> b.name.equals("oct")));
+			handler.<Player>register("test", "<u>", "test", (arg, player) -> {
+				//content.units().each(u -> player.sendMessage(String.join(" : ", u.name+"", u.groundLayer+"", u.accel+"", u.drag+"", u.canDrown+"", u.id+"")));
+				startSpawn(player.team(), content.units().find(b -> b.name.equals(arg[0])));
 			});
 		}
 	}
@@ -395,14 +393,21 @@ public class PluginMain extends mindustry.mod.Plugin {
 	private void startSpawn(Team team, UnitType unit) {
 		int count = stock.get(team);
 		stock.put(team, 0);
-		mindustry.world.blocks.storage.CoreBlock.CoreBuild core = team.cores().get(new java.util.Random().nextInt(team.cores().size));
-		
-		if(unit.flying || unit.canBoost || unit.groundLayer == 74.0f || unit.groundLayer == 75.0f)
-			for (int i=0; i<count; i++) unit.spawn(team, core.x+Mathf.cosDeg(i)*60, core.y+Mathf.sinDeg(i)*60);
-			
-        else{
-//##########################################################################################################################
-        }
+		new Thread() {
+			public void run() {
+				Spawner test = Spawner.spawn(team, unit, count);
+				
+				if (test.type == Spawner.SpawnResult.noPlace) Players.messageToTeam(team, 
+						"[scarlet]Les noyaux sont trop encombrés, veuillez faire de l'espace pour que toutes les unités puissent spawn ! [lightgray](unités non spawn remis en stock)");	
+				else if (test.type == Spawner.SpawnResult.noLiquid) Players.messageToTeam(team, 
+						"[scarlet]Il n'y a pas assez de liquide autour des noyaux, " + (count == test.result ? "les" : "le reste des") 
+						+ " unités ne peuvent pas spawn ! [lightgray](unités non spawn remis en stock)");
+				else if (test.type == Spawner.SpawnResult.unitLimit) Players.messageToTeam(team, "[scarlet]Limite de [accent]" + unit.name 
+						+ "[] atteinte ! [lightgray](unités non spawn remis en stock)");
+				
+				if (test.type != Spawner.SpawnResult.succes) stock.put(team, test.result);
+			}
+		}.start();
 	}
 	
 	private void startTimer() {
@@ -411,7 +416,7 @@ public class PluginMain extends mindustry.mod.Plugin {
 				@SuppressWarnings("static-access")
 				public void run() {
 					try {
-						Thread.sleep(2000);
+						Thread.sleep(1500);
 						timer = true;
 						String text = "[orange]Unités en stock : [green]%s[]\nTemps avant nouvelle\nunité : [green]%s[]%s";
 						int sec = time*60;
