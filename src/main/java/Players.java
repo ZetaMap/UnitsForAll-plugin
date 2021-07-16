@@ -32,10 +32,11 @@ public class Players {
     public static void warn(Player player, String fmt, Object... msg) {
     	player.sendMessage("[gold]Attention : []" + String.format(fmt, msg));
     }
-    public static void messageToTeam(Team team, String fmt, Object... msg) {
+    public static void messageToTeam(Team team, Player player, String fmt, Object... msg) {
     	if (testGamemode()) Groups.player.each(p -> p.team().equals(team), p -> p.sendMessage(
-    		"[#"+ team.color.toString() + "]" + team.name.toUpperCase() + ": []" + String.format(fmt, msg)));
-    	else Call.sendMessage(String.format(fmt, msg));
+    		"[#"+ team.color.toString() + "]" + team.name.toUpperCase() + ": []" + String.format(fmt, msg) 
+    		+ (player != null ? " [lightgray](par " + player.name + "[lightgray])" : "")));
+    	else Call.sendMessage(String.format(fmt, msg) + (player != null ? " [lightgray](par " + player.name + "[lightgray])" : ""));
     }
     public static void announce(Player player, String message) {
     	Call.infoPopup("[scarlet]" + message + " [lightgray](par " + player.name + "[lightgray])", 5, 0, 0, 0, 0, 0);
