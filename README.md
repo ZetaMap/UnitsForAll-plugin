@@ -10,7 +10,7 @@
 Ouvrez un 'Issue' si vous avez une suggestion ou rencontrez un bug.
 
 ### Releases
-Des versions prédéfinies peuvent être trouvées [ici](https://github.com/Susideur/UnitsForAll-plugin/releases)
+Des versions prédéfinies peuvent être trouvées [ici](https://github.com/ZetaMap/UnitsForAll-plugin/releases)
 
 ### Building a Jar 
 Vous avez juste à lancer `build.bat` et le plugin se compilera et s'exportera automatiquement.
