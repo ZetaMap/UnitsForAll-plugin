@@ -1,4 +1,6 @@
 # UnitsForAll plugin
+(plugin only in French) Ce plugin mindustry donne la possibilité aux joueurs de faire spawn l'unité de leurs choix toute les 15 min. <br>
+Compatible avec tous les modes de jeux même PvP.
 
 ### Commandes
 * `/votespawn <unité>` Lance un vote pour faire spawn toute les unités en stock.
